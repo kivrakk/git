@@ -1,0 +1,199 @@
+#include <SoftwareSerial.h>
+#include <String.h>
+#include <OneWire.h>
+#include "U8glib.h"
+U8GLIB_SSD1306_128X32 u8g(U8G_I2C_OPT_NONE);
+
+
+SoftwareSerial mySerial(7, 8);
+int DS18S20_Pin = 2; 
+OneWire ds(DS18S20_Pin);
+float temperature;
+
+int i;
+
+
+void setup()
+{
+  mySerial.begin(9600);          
+  Serial.begin(9600);  
+  delay(1000);
+
+}
+ 
+void loop()
+{
+      temperature = getTemp();
+      delay(2);          
+
+if(temperature<=3)
+{
+  call();
+}
+
+if(i==2&&temperature>3)
+{
+  i=0;
+}
+       GsmCommand();
+   
+  if (mySerial.available())
+    Serial.write(mySerial.read());
+
+  u8g.firstPage();  
+  do {
+
+  u8g.setFont(u8g_font_unifont);
+  u8g.setPrintPos(40, 30); 
+  u8g.print(temperature);
+  u8g.setFont(u8g_font_ncenB08); 
+  u8g.setPrintPos(25, 10); 
+  u8g.print("Sıcaklık");
+
+   
+  } while( u8g.nextPage() );
+  
+  delay(500);
+
+
+
+
+
+}
+
+
+float getTemp(){
+  
+
+  byte data[12];
+  byte addr[8];
+
+  if ( !ds.search(addr)) {
+      
+      ds.reset_search();
+      return -1000;
+  }
+
+  if ( OneWire::crc8( addr, 7) != addr[7]) {
+      Serial.println("CRC is not valid!");
+      return -1000;
+  }
+
+  if ( addr[0] != 0x10 && addr[0] != 0x28) {
+      Serial.print("Device is not recognized");
+      return -1000;
+  }
+
+  ds.reset();
+  ds.select(addr);
+  ds.write(0x44,1); 
+
+  byte present = ds.reset();
+  ds.select(addr);    
+  ds.write(0xBE); 
+
+  for (int i = 0; i < 9; i++) {
+    data[i] = ds.read();
+  }
+
+  ds.reset_search();
+
+  byte MSB = data[1];
+  byte LSB = data[0];
+
+  float tempRead = ((MSB << 8) | LSB);
+  float TemperatureSum = tempRead / 16;
+
+  return TemperatureSum;
+
+}
+
+void GsmCommand()
+{
+  mySerial.println("AT");
+  delay(1000);
+
+  mySerial.println("AT+CPIN?");
+  delay(1000);
+
+  mySerial.println("AT+CREG?");
+  delay(1000);
+
+  mySerial.println("AT+CGATT?");
+  delay(1000);
+
+  mySerial.println("AT+CIPSHUT");
+  delay(1000);
+
+  mySerial.println("AT+CIPSTATUS");
+  delay(2000);
+
+  mySerial.println("AT+CIPMUX=0");
+  delay(2000);
+ 
+  ShowSerialData();
+ 
+  mySerial.println("AT+CSTT=\"internet\"");
+  delay(1000);
+ 
+  ShowSerialData();
+ 
+  mySerial.println("AT+CIICR");
+  delay(3000);
+ 
+  ShowSerialData();
+ 
+  mySerial.println("AT+CIFSR");
+  delay(2000);
+ 
+  ShowSerialData();
+ 
+  mySerial.println("AT+CIPSPRT=0");
+  delay(3000);
+ 
+  ShowSerialData();
+  
+  mySerial.println("AT+CIPSTART=\"TCP\",\"api.thingspeak.com\",\"80\"");
+  delay(6000);
+ 
+  ShowSerialData();
+ 
+  mySerial.println("AT+CIPSEND");
+  delay(4000);
+  ShowSerialData();
+  
+    String str="GET https://api.thingspeak.com/update?api_key=XXXXXXXXXXXX" + String(temperature);
+  mySerial.println(str);
+  delay(4000);
+  ShowSerialData();
+
+  mySerial.println((char)26);
+  delay(5000); 
+  mySerial.println();
+ 
+  ShowSerialData();
+ 
+  mySerial.println("AT+CIPSHUT");
+  delay(100);
+  ShowSerialData();
+} 
+void ShowSerialData()
+{
+  while(mySerial.available()!=0)
+    Serial.write(mySerial.read());
+}
+
+void call()
+{
+  while(i<2)
+  {
+   
+    mySerial.println("ATD05333333333;");
+    delay(50000);
+  
+       i++;
+  
+  }
+
+  
+}
